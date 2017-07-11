@@ -9,7 +9,7 @@
 #include <LiquidCrystal.h>
 #include "LCD_Keypad_Reader.h"			// credits to: http://www.hellonull.com/?p=282
 
-const String CAPTION = "Pro-Timer 0.85";
+const String CAPTION = "Pro-Timer 0.86";
 
 LCD_Keypad_Reader keypad;
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);	//Pin assignments for SainSmart LCD Keypad Shield
@@ -23,10 +23,11 @@ const int RIGHT = 5;
 
 const int BACK_LIGHT = 10;
 
-const int RELEASE_TIME = 100;			// Shutter release time for camera
+const float RELEASE_TIME_DEFAULT = 0.1;			// default shutter release time for camera
+const float MIN_DARK_TIME = 0.5;
 
 const int keyRepeatRate = 100;			// when held, key repeats 1000 / keyRepeatRate times per second
-const int keySampleRate = 50;			// ms between checking keypad for key
+const int keySampleRate = 100;			// ms between checking keypad for key
 
 
 int localKey = 0;						// The current pressed key
@@ -36,12 +37,14 @@ unsigned long lastKeyCheckTime = 0;
 unsigned long lastKeyPressTime = 0;
 
 int sameKeyCount = 0;
+float releaseTime = RELEASE_TIME_DEFAULT;			        // Shutter release time for camera
 unsigned long previousMillis = 0;		// Timestamp of last shutter release
 unsigned long runningTime = 0;
 
 float interval = 4.0;					// the current interval
 long maxNoOfShots = 0;
 int isRunning = 0;						// flag indicates intervalometer is running
+unsigned long bulbReleasedAt = 0;
 
 int imageCount = 0;                   	// Image count since start of intervalometer
 
@@ -55,6 +58,8 @@ boolean backLight = HIGH;				// The current settings for the backlight
 
 const int SCR_INTERVAL = 0;				// menu workflow constants
 const int SCR_SHOOTS = 1;
+const int SCR_MODE = 9;
+const int SCR_EXPOSURE = 10;
 const int SCR_RUNNING = 2;
 const int SCR_CONFIRM_END = 3;
 const int SCR_SETTINGS = 4;
@@ -63,9 +68,13 @@ const int SCR_RAMP_TIME = 6;
 const int SCR_RAMP_TO = 7;
 const int SCR_DONE = 8;
 
+const int MODE_M = 0;
+const int MODE_BULB = 1;
+
 
 int currentMenu = 0;					// the currently selected menu
 int settingsSel = 1;					// the currently selected settings option
+int mode = MODE_M;            // mode: M or Bulb
 
 /**
    Initialize everything
@@ -120,6 +129,10 @@ void loop() {
 
     if ( currentMenu == SCR_RUNNING ) {
       printScreen();	// update running screen in any case
+
+      if( mode == MODE_BULB ){
+        possiblyEndLongExposure(); // checks regularly if a long exposure has to be cancelled
+      }
     }
   }
   if ( isRunning ) {	// release camera, do ramping if running
@@ -167,7 +180,24 @@ void processKey() {
       if ( localKey == RIGHT ) {
         lcd.clear();
         rampTo = interval;			// set rampTo default to the current interval
-        currentMenu = SCR_SHOOTS;
+        currentMenu = SCR_MODE;
+      }
+      break;
+
+    case SCR_MODE:
+      if ( localKey == RIGHT ) {
+          currentMenu = SCR_SHOOTS;
+      }
+      else if( localKey == LEFT ){
+        currentMenu = SCR_INTERVAL;
+      }
+      else if( ( localKey == UP ) || ( localKey == DOWN ) ){
+        if( mode == MODE_M ){
+          mode = MODE_BULB;
+        } else {
+          mode = MODE_M;
+          releaseTime = RELEASE_TIME_DEFAULT;   // when switching to M-Mode, set the shortest shutter release time.
+        }
       }
       break;
 
@@ -207,24 +237,46 @@ void processKey() {
       }
 
       if ( localKey == LEFT ) {
-        currentMenu = SCR_INTERVAL;
-        isRunning = 0;
+        currentMenu = SCR_MODE;
+        stopShooting();
         lcd.clear();
       }
 
       if ( localKey == RIGHT ) { // Start shooting
-        currentMenu = SCR_RUNNING;
-        previousMillis = millis();
-        runningTime = 0;
-        isRunning = 1;
-
-        lcd.clear();
-
-        // do the first release instantly, the subsequent ones will happen in the loop
-        releaseCamera();
-        imageCount++;
+        if( mode == MODE_M ){
+          currentMenu = SCR_RUNNING;
+          firstShutter();
+        } else {
+          currentMenu = SCR_EXPOSURE; // in Bulb mode ask for exposure
+        }
       }
       break;
+
+      // Exposure Time
+      case SCR_EXPOSURE:
+
+        if ( localKey == UP ) {
+          releaseTime = (float)((int)(releaseTime * 10) + 1) / 10; // round to 1 decimal place
+          if ( releaseTime > interval - MIN_DARK_TIME ) { // no intervals longer as 99secs - those would scramble the display
+            releaseTime = interval - MIN_DARK_TIME;
+          }
+        }
+
+        if ( localKey == DOWN ) {
+          if ( releaseTime > RELEASE_TIME_DEFAULT ) {
+            releaseTime = (float)((int)(releaseTime * 10) - 1) / 10; // round to 1 decimal place
+          }
+        }
+
+        if ( localKey == LEFT ) {
+          currentMenu = SCR_SHOOTS;
+        }
+
+        if ( localKey == RIGHT ) {
+          currentMenu = SCR_RUNNING;
+          firstShutter();
+        }
+        break;
 
     case SCR_RUNNING:
 
@@ -253,9 +305,7 @@ void processKey() {
     case SCR_CONFIRM_END:
       if ( localKey == LEFT ) { // Really abort
         currentMenu = SCR_INTERVAL;
-        isRunning = 0;
-        imageCount = 0;
-        runningTime = 0;
+        stopShooting();
         lcd.clear();
       }
       if ( localKey == RIGHT ) { // resume
@@ -372,14 +422,32 @@ void processKey() {
 
       if ( localKey == LEFT || localKey == RIGHT ) {
         currentMenu = SCR_INTERVAL;
-        isRunning = 0;
-        imageCount = 0;
-        runningTime = 0;
+        stopShooting();
         lcd.clear();
       }
       break;
   }
   printScreen();
+}
+
+void stopShooting(){
+  isRunning = 0;
+  imageCount = 0;
+  runningTime = 0;
+  bulbReleasedAt = 0;
+}
+
+void firstShutter(){
+  previousMillis = millis();
+  runningTime = 0;
+  isRunning = 1;
+
+  lcd.clear();
+  printRunningScreen();
+
+  // do the first release instantly, the subsequent ones will happen in the loop
+  releaseCamera();
+  imageCount++;
 }
 
 void printScreen() {
@@ -390,8 +458,16 @@ void printScreen() {
       printIntervalMenu();
       break;
 
+    case SCR_MODE:
+      printModeMenu();
+      break;
+
     case SCR_SHOOTS:
       printNoOfShotsMenu();
+      break;
+
+    case SCR_EXPOSURE:
+      printExposureMenu();
       break;
 
     case SCR_RUNNING:
@@ -435,7 +511,7 @@ void running() {
 
     if ( ( maxNoOfShots != 0 ) && ( imageCount >= maxNoOfShots ) ) { // sequence is finished
       // stop shooting
-      isRunning = 0;
+      stopShooting();
       currentMenu = SCR_DONE;
       lcd.clear();
       printDoneScreen(); // invoke manually
@@ -458,6 +534,11 @@ void possiblyRampInterval() {
 
   if ( ( millis() < rampingEndTime ) && ( millis() >= rampingStartTime ) ) {
     interval = intervalBeforeRamping + ( (float)( millis() - rampingStartTime ) / (float)( rampingEndTime - rampingStartTime ) * ( rampTo - intervalBeforeRamping ) );
+
+    if( releaseTime > interval - MIN_DARK_TIME ){ // if ramping makes the interval too short for the exposure time in bulb mode, adjust the exposure time
+      releaseTime =  interval - MIN_DARK_TIME;
+    }
+
   } else {
     rampingStartTime = 0;
     rampingEndTime = 0;
@@ -469,16 +550,50 @@ void possiblyRampInterval() {
 */
 void releaseCamera() {
 
-  lcd.setCursor(15, 0);
-  lcd.print((char)255);
+  // short trigger in M-Mode
+  if( releaseTime < 1 ){
+    if( currentMenu == SCR_RUNNING ){ // display exposure indicator on running screen only
+      lcd.setCursor(7, 1);
+      lcd.print((char)255);
+    }
 
-  digitalWrite(12, HIGH);
-  delay(RELEASE_TIME);
-  digitalWrite(12, LOW);
+    digitalWrite(12, HIGH);
+    delay( releaseTime * 1000 );
+    digitalWrite(12, LOW);
 
-  lcd.setCursor(15, 0);
-  lcd.print(" ");
+    if( currentMenu == SCR_RUNNING ){ // clear exposure indicator
+      lcd.setCursor(7, 1);
+      lcd.print(" ");
+    }
+
+  } else { // releaseTime > 1 sec
+
+    // long trigger in Bulb-Mode for longer exposures
+    if( bulbReleasedAt == 0 ){
+        bulbReleasedAt = millis();
+        digitalWrite(12, HIGH);
+    }
+  }
+
 }
+
+void possiblyEndLongExposure(){
+  if( ( bulbReleasedAt != 0 ) && ( millis() >= bulbReleasedAt + releaseTime * 1000 ) ){
+    bulbReleasedAt = 0;
+    digitalWrite(12, LOW);
+  }
+
+  if( currentMenu == SCR_RUNNING ){ // display exposure indicator on running screen only
+    if( bulbReleasedAt == 0 ) {
+      lcd.setCursor(7, 1);
+      lcd.print(" ");
+    } else {
+      lcd.setCursor(7, 1);
+      lcd.print((char)255);
+    }
+  }
+}
+
 
 /**
    Pause Mode
@@ -499,11 +614,39 @@ void printPauseMenu() {
 void printIntervalMenu() {
 
   lcd.setCursor(0, 0);
-  lcd.print("Interval");
+  lcd.print("Interval        ");
   lcd.setCursor(0, 1);
   lcd.print( interval );
-  lcd.print( "     " );
+  lcd.print( "           " );
 }
+
+/**
+   Configure Exposure setting in Bulb mode
+*/
+void printExposureMenu() {
+
+  lcd.setCursor(0, 0);
+  lcd.print("Exposure        ");
+  lcd.setCursor(0, 1);
+  lcd.print( releaseTime );
+  lcd.print( "           " );
+}
+
+/**
+   Configure Mode setting
+*/
+void printModeMenu() {
+
+  lcd.setCursor(0, 0);
+  lcd.print("Mode");
+  lcd.setCursor(0, 1);
+  if( mode == MODE_M ){
+    lcd.print( "M (Default)     " );
+  } else {
+    lcd.print( "Bulb (Astro)    " );
+  }
+}
+
 
 /**
    Configure no of shots - 0 means infinity
@@ -518,6 +661,7 @@ void printNoOfShotsMenu() {
   } else {
     lcd.print( "----" );
   }
+  lcd.print( "            "); // clear rest of display
 }
 
 /**
@@ -682,4 +826,3 @@ String printInt( int i, int total) {
   String s = dtostrf(f, total, 0, dtostrfbuffer);
   return s;
 }
-

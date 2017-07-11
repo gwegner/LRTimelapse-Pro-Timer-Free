@@ -1,0 +1,6 @@
+0.86
+- Added Shooting-Mode menu, M vs. Bulb
+- New Bulb timelapse shooting mode for astro-photographers that would like to define the exposure time via the timer: in M-Mode, the trigger time by the timer will be the shortest possible for regular timelapse shooting, exposure will be set in the camera. In Bulb-Mode the exposure will be controlled and can be defined in the timer. The maximum possible exposure will be Interval - 0.5 secs dark time. This dark-time is defined as constant in the source code and can be changed, if necessary.
+- Improved key responsiveness
+
+0.85 first public version
