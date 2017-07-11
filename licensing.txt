@@ -1,0 +1,27 @@
+ENGLISH
+
+--- License terms for the LRTimelapse Timer Pro Free ---
+
+We provide the arduino sketches and the housing of the LRTimelapse Timer Pro Free under a modified Creative Commons BY-NC-SA license.
+
+Concretely: under the condition of the attribution ("based on the LRTimelapse Timer Pro Free by Gunther Wegner, http://gwegner.de http://lrtimelapse.com") and the exclusion of a commercial use, the source code (sketch) and the housing of the LRTimelapse Timer Pro Free may be modified and distributed. Any modification must be a) must be announced and made available to the author (Gunther Wegner) in order to possibly be incorporated into the LRTimelapse Timer Pro Free prior to its publication and b) also released as a free project under the same conditions.
+
+This license applies solely to the source code and the housing of the LRTimelapse Timer Pro Free and not on any work created by using the LRTimelapse Timer Pro Free. These are, of course, subject to the copyright of the photographer and may be freely licensed and used, even commercially.
+
+Further information on:
+http://lrtimelapse.com
+
+
+
+DEUTSCH
+
+--- Lizenzbedingungen für den LRTimelapse Timer Pro Free ---
+
+Wir stellen die Arduino Sketche und das Gehäuse des LRTimelapse Timer Pro Free unter eine modifizierte Creative Commons BY-NC-SA Lizenz.
+
+Konkret: unter der Bedingung der Namensnennung (Basiert auf dem LRTimelapse Timer Pro Free von Gunther Wegner, http://gwegner.de http://lrtimelapse.com) und dem Ausschluss einer kommerziellen Nutzung, darf der Source Code (Sketch) und das Gehäuse des LRTimelapse Timer Pro Free modifiziert und weitergegeben werden. Jegliche Modifikation muss a) vor ihrer Veröffentlichung dem Autor (Gunther Wegner) bekannt gegeben und zur Verfügung gestellt werden, um ggf. in den LRTimelapse Timer Pro Free einfließen zu können und muss b) ebenfalls als freies Projekt unter gleichen Bedingungen veröffentlicht werden.
+
+Diese Lizenz bezieht sich ausschließlich auf den Source-Code und das Gehäuse des LRTimelapse Timer Pro Free und nicht auf etwaige Werke, die durch Nutzung des LRTimelapse Timer Pro Free entstehen. Diese unterliegen selbstverständlich dem Copyright des Fotografen und können beliebig, auch kommerziell, lizenziert und verwendet werden.
+
+Alle weiteren Informationen gibt es auf der Projektseite: 
+http://gwegner.de/know-how/lrtimelapse-pro-timer-free/

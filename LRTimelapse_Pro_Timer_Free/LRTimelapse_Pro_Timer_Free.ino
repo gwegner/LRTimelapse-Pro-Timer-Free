@@ -62,6 +62,7 @@ const int SCR_MODE = 9;
 const int SCR_EXPOSURE = 10;
 const int SCR_RUNNING = 2;
 const int SCR_CONFIRM_END = 3;
+const int SCR_CONFIRM_END_BULB = 12;
 const int SCR_SETTINGS = 4;
 const int SCR_PAUSE = 5;
 const int SCR_RAMP_TIME = 6;
@@ -271,9 +272,10 @@ void processKey() {
 
         if ( localKey == UP ) {
           releaseTime = (float)((int)(releaseTime * 10) + 1) / 10; // round to 1 decimal place
-          if ( releaseTime > interval - MIN_DARK_TIME ) { // no intervals longer as 99secs - those would scramble the display
-            releaseTime = interval - MIN_DARK_TIME;
-          }
+        }
+
+        if ( releaseTime > interval - MIN_DARK_TIME ) { // no release times longer then (interval-Min_Dark_Time)
+          releaseTime = interval - MIN_DARK_TIME;
         }
 
         if ( localKey == DOWN ) {
@@ -290,6 +292,7 @@ void processKey() {
           currentMenu = SCR_RUNNING;
           firstShutter();
         }
+
         break;
 
     case SCR_RUNNING:
@@ -319,6 +322,11 @@ void processKey() {
     case SCR_CONFIRM_END:
       if ( localKey == LEFT ) { // Really abort
         currentMenu = SCR_INTERVAL;
+
+        if( bulbReleasedAt > 0 ){ // if we are shooting in bulb mode, instantly stop the exposure
+          bulbReleasedAt = 0;
+          digitalWrite(12, LOW);
+        }
         stopShooting();
         lcd.clear();
       }
@@ -468,11 +476,29 @@ void processKey() {
 
       if ( localKey == RIGHT ) {
         lcd.clear();
-        bulbReleasedAt = 1; // this will force the bulb shooting to be ended
-        releaseTime = RELEASE_TIME_DEFAULT;
-        currentMenu = SCR_INTERVAL;
+        if( bulbReleasedAt == 0 ){   // if not running, go to main screen
+          currentMenu = SCR_INTERVAL;
+        } else {                     // if running, go to confirm screen
+          currentMenu = SCR_CONFIRM_END_BULB;
+        }
+
       }
     break;
+
+    case SCR_CONFIRM_END_BULB:
+        if ( localKey == RIGHT ) { // Really abort
+
+          digitalWrite(12, LOW);
+          stopShooting();
+
+          currentMenu = SCR_SINGLE;
+          lcd.clear();
+        }
+        if ( localKey == LEFT ) { // resume
+          currentMenu = SCR_SINGLE;
+          lcd.clear();
+        }
+        break;
 
   }
   printScreen();
@@ -524,6 +550,10 @@ void printScreen() {
 
     case SCR_CONFIRM_END:
       printConfirmEndScreen();
+      break;
+
+    case SCR_CONFIRM_END_BULB:
+      printConfirmEndScreenBulb();
       break;
 
     case SCR_SETTINGS:
@@ -630,8 +660,11 @@ void releaseCamera() {
 
 }
 
+/**
+  Will be called by the loop and check if a bulb exposure has to end. If so, it will stop the exposure.
+*/
 void possiblyEndLongExposure(){
-  if( ( bulbReleasedAt != 0 ) && ( millis() >= bulbReleasedAt + releaseTime * 1000 ) ){
+  if( ( bulbReleasedAt != 0 ) && ( millis() >= ( bulbReleasedAt + releaseTime * 1000 ) ) ){
     bulbReleasedAt = 0;
     digitalWrite(12, LOW);
   }
@@ -674,7 +707,7 @@ void printIntervalMenu() {
   lcd.print("Interval        ");
   lcd.setCursor(0, 1);
   lcd.print( interval );
-  lcd.print( "\"          " );
+  lcd.print( "          " );
 }
 
 /**
@@ -694,7 +727,6 @@ void printExposureMenu() {
   String sSecs = fillZero( secs );
 
   lcd.print(releaseTime);
-  lcd.print("\"");
   lcd.print( "           " );
 }
 
@@ -787,6 +819,13 @@ void printConfirmEndScreen() {
   lcd.print( "< Stop    Cont.>");
 }
 
+void printConfirmEndScreenBulb() {
+  lcd.setCursor(0, 0);
+  lcd.print( "Stop exposure?");
+  lcd.setCursor(0, 1);
+  lcd.print( "< Cont.   Stop >");
+}
+
 void printSingleScreen(){
   lcd.setCursor(0, 0);
 
@@ -798,21 +837,24 @@ void printSingleScreen(){
   } else {
     lcd.print( "Bulb Exposure  ");
     lcd.setCursor(0, 1);
-    // display exposure time setting
-    int hours = (int)releaseTime / 60 / 60;
-    int minutes = ( (int)releaseTime / 60 ) % 60;
-    int secs = ( (int)releaseTime ) % 60;
-    String sHours = fillZero( hours );
-    String sMinutes = fillZero( minutes );
-    String sSecs = fillZero( secs );
 
-    lcd.print( sHours );
-    lcd.print(":");
-    lcd.print( sMinutes );
-    lcd.print( "\'");
-    lcd.print( sSecs );
-    lcd.print( "\"");
-    lcd.print( " " );
+    if( bulbReleasedAt == 0 ){ // if not shooting
+      // display exposure time setting
+      int hours = (int)releaseTime / 60 / 60;
+      int minutes = ( (int)releaseTime / 60 ) % 60;
+      int secs = ( (int)releaseTime ) % 60;
+      String sHours = fillZero( hours );
+      String sMinutes = fillZero( minutes );
+      String sSecs = fillZero( secs );
+
+      lcd.print( sHours );
+      lcd.print(":");
+      lcd.print( sMinutes );
+      lcd.print( "\'");
+      lcd.print( sSecs );
+      lcd.print( "\"");
+      lcd.print( " " );
+    }
   }
 
   if( bulbReleasedAt == 0 ){ // currently not running
