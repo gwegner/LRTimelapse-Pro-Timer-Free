@@ -9,7 +9,7 @@
 #include <LiquidCrystal.h>
 #include "LCD_Keypad_Reader.h"			// credits to: http://www.hellonull.com/?p=282
 
-const String CAPTION = "Pro-Timer 0.86";
+const String CAPTION = "Pro-Timer 0.87";
 
 LCD_Keypad_Reader keypad;
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);	//Pin assignments for SainSmart LCD Keypad Shield
@@ -57,7 +57,7 @@ float intervalBeforeRamping = 0;		// interval before ramping
 boolean backLight = HIGH;				// The current settings for the backlight
 
 const int SCR_INTERVAL = 0;				// menu workflow constants
-const int SCR_SHOOTS = 1;
+const int SCR_SHOTS = 1;
 const int SCR_MODE = 9;
 const int SCR_EXPOSURE = 10;
 const int SCR_RUNNING = 2;
@@ -67,6 +67,9 @@ const int SCR_PAUSE = 5;
 const int SCR_RAMP_TIME = 6;
 const int SCR_RAMP_TO = 7;
 const int SCR_DONE = 8;
+
+// left side MENUS
+const int SCR_SINGLE = 11;
 
 const int MODE_M = 0;
 const int MODE_BULB = 1;
@@ -134,6 +137,11 @@ void loop() {
         possiblyEndLongExposure(); // checks regularly if a long exposure has to be cancelled
       }
     }
+
+    if( currentMenu == SCR_SINGLE ){
+      possiblyEndLongExposure();
+    }
+
   }
   if ( isRunning ) {	// release camera, do ramping if running
     running();
@@ -182,11 +190,17 @@ void processKey() {
         rampTo = interval;			// set rampTo default to the current interval
         currentMenu = SCR_MODE;
       }
+
+      if ( localKey == LEFT ) {
+        lcd.clear();
+        currentMenu = SCR_SINGLE;
+      }
+
       break;
 
     case SCR_MODE:
       if ( localKey == RIGHT ) {
-          currentMenu = SCR_SHOOTS;
+          currentMenu = SCR_SHOTS;
       }
       else if( localKey == LEFT ){
         currentMenu = SCR_INTERVAL;
@@ -201,7 +215,7 @@ void processKey() {
       }
       break;
 
-    case SCR_SHOOTS:
+    case SCR_SHOTS:
 
       if ( localKey == UP ) {
         if ( maxNoOfShots >= 2500 ) {
@@ -269,7 +283,7 @@ void processKey() {
         }
 
         if ( localKey == LEFT ) {
-          currentMenu = SCR_SHOOTS;
+          currentMenu = SCR_SHOTS;
         }
 
         if ( localKey == RIGHT ) {
@@ -426,6 +440,40 @@ void processKey() {
         lcd.clear();
       }
       break;
+
+    case SCR_SINGLE:
+      if ( localKey == UP ) {
+        if( releaseTime < 60 )
+          releaseTime = (float)((int)(releaseTime + 1));
+        else
+          releaseTime = (float)((int)(releaseTime + 10));
+      }
+
+      if ( localKey == DOWN ) {
+        if ( releaseTime > RELEASE_TIME_DEFAULT ) {
+          if( releaseTime < 60 )
+            releaseTime = (float)((int)(releaseTime - 1));
+          else
+            releaseTime = (float)((int)(releaseTime - 10));
+        }
+        if( releaseTime < RELEASE_TIME_DEFAULT ){ // if it's too short after decrementing, set to the default release time.
+          releaseTime = RELEASE_TIME_DEFAULT;
+        }
+      }
+
+      if ( localKey == LEFT ) {
+        lcd.clear();
+        releaseCamera();
+      }
+
+      if ( localKey == RIGHT ) {
+        lcd.clear();
+        bulbReleasedAt = 1; // this will force the bulb shooting to be ended
+        releaseTime = RELEASE_TIME_DEFAULT;
+        currentMenu = SCR_INTERVAL;
+      }
+    break;
+
   }
   printScreen();
 }
@@ -462,7 +510,7 @@ void printScreen() {
       printModeMenu();
       break;
 
-    case SCR_SHOOTS:
+    case SCR_SHOTS:
       printNoOfShotsMenu();
       break;
 
@@ -497,6 +545,10 @@ void printScreen() {
     case SCR_DONE:
       printDoneScreen();
       break;
+
+    case SCR_SINGLE:
+      printSingleScreen();
+      break;
   }
 }
 
@@ -511,10 +563,11 @@ void running() {
 
     if ( ( maxNoOfShots != 0 ) && ( imageCount >= maxNoOfShots ) ) { // sequence is finished
       // stop shooting
-      stopShooting();
+      isRunning = 0;
       currentMenu = SCR_DONE;
       lcd.clear();
       printDoneScreen(); // invoke manually
+      stopShooting();
     } else { // is running
       runningTime += (millis() - previousMillis );
       previousMillis = millis();
@@ -592,6 +645,10 @@ void possiblyEndLongExposure(){
       lcd.print((char)255);
     }
   }
+
+  if( currentMenu == SCR_SINGLE ){
+    printSingleScreen();
+  }
 }
 
 
@@ -617,7 +674,7 @@ void printIntervalMenu() {
   lcd.print("Interval        ");
   lcd.setCursor(0, 1);
   lcd.print( interval );
-  lcd.print( "           " );
+  lcd.print( "\"          " );
 }
 
 /**
@@ -628,7 +685,16 @@ void printExposureMenu() {
   lcd.setCursor(0, 0);
   lcd.print("Exposure        ");
   lcd.setCursor(0, 1);
-  lcd.print( releaseTime );
+
+  int hours = (int)releaseTime / 60 / 60;
+  int minutes = ( (int)releaseTime / 60 ) % 60;
+  int secs = ( (int)releaseTime ) % 60;
+  String sHours = fillZero( hours );
+  String sMinutes = fillZero( minutes );
+  String sSecs = fillZero( secs );
+
+  lcd.print(releaseTime);
+  lcd.print("\"");
   lcd.print( "           " );
 }
 
@@ -720,6 +786,68 @@ void printConfirmEndScreen() {
   lcd.setCursor(0, 1);
   lcd.print( "< Stop    Cont.>");
 }
+
+void printSingleScreen(){
+  lcd.setCursor(0, 0);
+
+  if( releaseTime < 1 ){
+    lcd.print( "Single Exposure");
+    lcd.setCursor(0, 1);
+    lcd.print(releaseTime); // under one second
+    lcd.print("       ");
+  } else {
+    lcd.print( "Bulb Exposure  ");
+    lcd.setCursor(0, 1);
+    // display exposure time setting
+    int hours = (int)releaseTime / 60 / 60;
+    int minutes = ( (int)releaseTime / 60 ) % 60;
+    int secs = ( (int)releaseTime ) % 60;
+    String sHours = fillZero( hours );
+    String sMinutes = fillZero( minutes );
+    String sSecs = fillZero( secs );
+
+    lcd.print( sHours );
+    lcd.print(":");
+    lcd.print( sMinutes );
+    lcd.print( "\'");
+    lcd.print( sSecs );
+    lcd.print( "\"");
+    lcd.print( " " );
+  }
+
+  if( bulbReleasedAt == 0 ){ // currently not running
+
+    lcd.setCursor(10,1);
+    lcd.print( "< FIRE" );
+
+  } else { // running
+    unsigned long runningTime = ( bulbReleasedAt + releaseTime * 1000 ) - millis();
+
+    int hours = runningTime / 1000 / 60 / 60;
+    int minutes = ( runningTime / 1000 / 60 ) % 60;
+    int secs = ( runningTime / 1000 ) % 60;
+
+    String sHours = fillZero( hours );
+    String sMinutes = fillZero( minutes );
+    String sSecs = fillZero( secs );
+
+    lcd.setCursor(0, 1);
+    lcd.print("        "); // clear time setting display
+    lcd.setCursor(8, 1);
+    lcd.print( sHours );
+    lcd.setCursor(10, 1);
+    lcd.print(":");
+    lcd.setCursor(11, 1);
+    lcd.print( sMinutes );
+    lcd.setCursor(13, 1);
+    lcd.print(":");
+    lcd.setCursor(14, 1);
+    lcd.print( sSecs );
+  }
+
+
+}
+
 
 /**
    Update the time display in the main screen
