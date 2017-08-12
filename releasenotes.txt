@@ -1,3 +1,11 @@
+0.88
+Changes by Klaus Heiss, Austria (Thank you!)
+- Introduces dynamic key repeating. This makes the keyboard more responsive.
+  Key repetition starts with 2 per second and then increases to 10 keystrokes per second.
+- changed Menu text for "No of shots" form "----" to "unlimited".  
+- Made the key recognition less sensitive, so it will work without changes with a wider variety of displays.
+- Added alternative key values into LCD_Keypad_Reader.cpp for a similar looking Display from Sainmart, but with other voltage steps. You may comment out this alternative values, if the key pressures are not properly recognized on your board.
+
 0.87
 - Added Left click Single Exposure screen. From the main (interval) screen press left, to reach the Single Exposure screen. Here you can either briefly trigger a single shot from the camera (press left) or you can use the up/down keys to set a bulb time.
 Thanks to user Colin that brought up the idea in his fork on https://github.com/ColMol/LRTimelapse-Pro-Timer-Free/tree/master/LRTimelapse_Pro_Timer_Free)
