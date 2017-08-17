@@ -27,12 +27,14 @@ class LCD_Keypad_Reader
     int getKey();
     int categorizeKey(int);
     int RepeatRate;
+    const int keyRepeatRateBonusGear = -1;
     int ActRepeatRate();
   private:
     int _keyPin;
     int _threshold;
     int _curInput;
     int _curKey;
+    int _numberOfIncrementations;
 };
 
 const  int keySampleRate          = 100;      // ms between checking keypad for key
@@ -42,6 +44,6 @@ const  int keyRepeatRateHighDelay = 500;      // delay for speeding up
 const  int keyRepeatRateStep      =  60;      // speeding up steps
 const  int keyRepeatRateSlow      = 500;      // SLOW speed when held, key repeats 1000 / keyRepeatRate times per second
 const  int keyRepeatRateHigh      = 100;      // HIGH speed when held, key repeats 1000 / keyRepeatRate times per second
-
+const  int bonusGearTrigger       =  50;      // The number of key samples it should take before the bonus gear kicks in
 
 #endif

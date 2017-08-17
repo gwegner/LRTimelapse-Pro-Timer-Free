@@ -27,7 +27,7 @@ const int BACK_LIGHT = 10;
 const float RELEASE_TIME_DEFAULT = 0.1;			// default shutter release time for camera
 const float MIN_DARK_TIME = 0.5;
 
-const int keyRepeatRate = 100;			// when held, key repeats 1000 / keyRepeatRate times per second
+//const int keyRepeatRate = 100;			// when held, key repeats 1000 / keyRepeatRate times per second
 
 int localKey = 0;						// The current pressed key
 int lastKeyPressed = -1;				// The last pressed key
@@ -35,7 +35,7 @@ int lastKeyPressed = -1;				// The last pressed key
 unsigned long lastKeyCheckTime = 0;
 unsigned long lastKeyPressTime = 0;
 
-int sameKeyCount = 0;
+//int sameKeyCount = 0;
 float releaseTime = RELEASE_TIME_DEFAULT;			        // Shutter release time for camera
 unsigned long previousMillis = 0;		// Timestamp of last shutter release
 unsigned long runningTime = 0;
@@ -176,7 +176,12 @@ void processKey() {
     case SCR_INTERVAL:
 
       if ( localKey == UP ) {
-        interval = (float)((int)(interval * 10) + 1) / 10; // round to 1 decimal place
+        if(keypad.RepeatRate != keypad.keyRepeatRateBonusGear){
+          interval = (float)((int)(interval * 10) + 1) / 10; // round to 1 decimal place
+        }else{
+          //Bonus gear
+          interval = (float)((int)interval) + 1; //Adds a whole second to the interval
+        }
         if ( interval > 99 ) { // no intervals longer as 99secs - those would scramble the display
           interval = 99;
         }
@@ -184,7 +189,15 @@ void processKey() {
 
       if ( localKey == DOWN ) {
         if ( interval > 0.2) {
-          interval = (float)((int)(interval * 10) - 1) / 10; // round to 1 decimal place
+          if(keypad.RepeatRate != keypad.keyRepeatRateBonusGear){
+            interval = (float)((int)(interval * 10) - 1) / 10; // round to 1 decimal place
+          }else{
+            //Bonus gear
+            interval = (float)((int)interval) - 1;//Adds a whole second to the interval
+            if(interval < 0.2){
+              interval = 0.2; //To avoid the bonus gear to step past the previous test.
+            }
+          }
         }
       }
 
