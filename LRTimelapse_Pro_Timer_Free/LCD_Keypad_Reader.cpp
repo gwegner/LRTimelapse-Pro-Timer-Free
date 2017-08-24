@@ -44,6 +44,7 @@ LCD_Keypad_Reader::LCD_Keypad_Reader()
   _threshold = DEFAULT_THRESHOLD;
   _curInput = NO_KEY;
   _curKey = NO_KEY;
+  _numberOfIncrementations = 0;
   RepeatRate = keyRepeatRateSlow;
 }
 
@@ -51,8 +52,12 @@ int LCD_Keypad_Reader::ActRepeatRate()
 {
   RepeatRate -= keyRepeatRateStep;
   if (RepeatRate < keyRepeatRateHigh){
-    RepeatRate =keyRepeatRateHigh;
+    RepeatRate = keyRepeatRateHigh;
+    if(_numberOfIncrementations > bonusGearTrigger){
+      RepeatRate = keyRepeatRateBonusGear;
+    }
   }
+  _numberOfIncrementations++;
   return RepeatRate;
 }
 
@@ -83,6 +88,7 @@ int LCD_Keypad_Reader::categorizeKey(int analogKeyValue){
   }
   else{
     categorizedKeyValue = NO_KEY;
+    _numberOfIncrementations = 0;
   }
 
   return categorizedKeyValue;

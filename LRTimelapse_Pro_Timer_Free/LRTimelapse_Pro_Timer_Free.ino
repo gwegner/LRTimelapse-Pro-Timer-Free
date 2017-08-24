@@ -14,6 +14,8 @@ const String CAPTION = "Pro-Timer 0.88";
 
 LCD_Keypad_Reader keypad;
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);	//Pin assignments for SainSmart LCD Keypad Shield
+const int backlight_pin = 10;			//Pin assignment for the backlight LED on the Sainsmart LCD
+const int trigger_pin = 12;				//Pin assignment for the trigger-signal to be sent to the camera
 
 const int NONE = 0;						// Key constants
 const int SELECT = 1;
@@ -22,12 +24,11 @@ const int UP = 3;
 const int DOWN = 4;
 const int RIGHT = 5;
 
-const int BACK_LIGHT = 10;
 
 const float RELEASE_TIME_DEFAULT = 0.1;			// default shutter release time for camera
 const float MIN_DARK_TIME = 0.5;
 
-const int keyRepeatRate = 100;			// when held, key repeats 1000 / keyRepeatRate times per second
+//const int keyRepeatRate = 100;			// when held, key repeats 1000 / keyRepeatRate times per second
 
 int localKey = 0;						// The current pressed key
 int lastKeyPressed = -1;				// The last pressed key
@@ -35,7 +36,7 @@ int lastKeyPressed = -1;				// The last pressed key
 unsigned long lastKeyCheckTime = 0;
 unsigned long lastKeyPressTime = 0;
 
-int sameKeyCount = 0;
+//int sameKeyCount = 0;
 float releaseTime = RELEASE_TIME_DEFAULT;			        // Shutter release time for camera
 unsigned long previousMillis = 0;		// Timestamp of last shutter release
 unsigned long runningTime = 0;
@@ -84,8 +85,8 @@ int mode = MODE_M;            // mode: M or Bulb
 */
 void setup() {
 
-  pinMode(BACK_LIGHT, OUTPUT);
-  digitalWrite(BACK_LIGHT, HIGH);		// Turn backlight on.
+  pinMode(backlight_pin, OUTPUT);
+  digitalWrite(backlight_pin, HIGH);		// Turn backlight on.
 
   lcd.begin(16, 2);
   lcd.clear();
@@ -96,7 +97,7 @@ void setup() {
   lcd.setCursor(0, 1);
   lcd.print( CAPTION );
 
-  pinMode(12, OUTPUT);					// initialize output pin for camera release
+  pinMode(trigger_pin, OUTPUT);					// initialize output pin for camera release
 
   delay(2000);							// wait a moment...
 
@@ -167,7 +168,7 @@ void processKey() {
     } else {
       backLight = HIGH;
     }
-    digitalWrite(BACK_LIGHT, backLight); // Turn backlight on.
+    digitalWrite(backlight_pin, backLight); // Turn backlight on.
   }
 
   // do the menu navigation
@@ -176,7 +177,12 @@ void processKey() {
     case SCR_INTERVAL:
 
       if ( localKey == UP ) {
-        interval = (float)((int)(interval * 10) + 1) / 10; // round to 1 decimal place
+        if(keypad.RepeatRate != keypad.keyRepeatRateBonusGear){
+          interval = (float)((int)(interval * 10) + 1) / 10; // round to 1 decimal place
+        }else{
+          //Bonus gear
+          interval = (float)((int)interval) + 1; //Adds a whole second to the interval
+        }
         if ( interval > 99 ) { // no intervals longer as 99secs - those would scramble the display
           interval = 99;
         }
@@ -184,7 +190,15 @@ void processKey() {
 
       if ( localKey == DOWN ) {
         if ( interval > 0.2) {
-          interval = (float)((int)(interval * 10) - 1) / 10; // round to 1 decimal place
+          if(keypad.RepeatRate != keypad.keyRepeatRateBonusGear){
+            interval = (float)((int)(interval * 10) - 1) / 10; // round to 1 decimal place
+          }else{
+            //Bonus gear
+            interval = (float)((int)interval) - 1;//Adds a whole second to the interval
+            if(interval < 0.2){
+              interval = 0.2; //To avoid the bonus gear to step past the previous test.
+            }
+          }
         }
       }
 
@@ -327,7 +341,7 @@ void processKey() {
 
         if( bulbReleasedAt > 0 ){ // if we are shooting in bulb mode, instantly stop the exposure
           bulbReleasedAt = 0;
-          digitalWrite(12, LOW);
+          digitalWrite(trigger_pin, LOW);
         }
         stopShooting();
         lcd.clear();
@@ -490,7 +504,7 @@ void processKey() {
     case SCR_CONFIRM_END_BULB:
         if ( localKey == RIGHT ) { // Really abort
 
-          digitalWrite(12, LOW);
+          digitalWrite(trigger_pin, LOW);
           stopShooting();
 
           currentMenu = SCR_SINGLE;
@@ -642,9 +656,9 @@ void releaseCamera() {
       lcd.print((char)255);
     }
 
-    digitalWrite(12, HIGH);
+    digitalWrite(trigger_pin, HIGH);
     delay( releaseTime * 1000 );
-    digitalWrite(12, LOW);
+    digitalWrite(trigger_pin, LOW);
 
     if( currentMenu == SCR_RUNNING ){ // clear exposure indicator
       lcd.setCursor(7, 1);
@@ -656,7 +670,7 @@ void releaseCamera() {
     // long trigger in Bulb-Mode for longer exposures
     if( bulbReleasedAt == 0 ){
         bulbReleasedAt = millis();
-        digitalWrite(12, HIGH);
+        digitalWrite(trigger_pin, HIGH);
     }
   }
 
@@ -668,7 +682,7 @@ void releaseCamera() {
 void possiblyEndLongExposure(){
   if( ( bulbReleasedAt != 0 ) && ( millis() >= ( bulbReleasedAt + releaseTime * 1000 ) ) ){
     bulbReleasedAt = 0;
-    digitalWrite(12, LOW);
+    digitalWrite(trigger_pin, LOW);
   }
 
   if( currentMenu == SCR_RUNNING ){ // display exposure indicator on running screen only

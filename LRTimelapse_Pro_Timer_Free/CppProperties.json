@@ -1,0 +1,34 @@
+{
+  "configurations": [
+    {
+      "name": "Visual Micro",
+      "intelliSenseMode": "msvc-x64",
+      "includePath": [
+        "D:\\Programfiler\\Arduino\\libraries\\LiquidCrystal\\src",
+        "D:\\Programfiler\\Arduino\\hardware\\arduino\\avr\\libraries\\EEPROM\\src",
+        "D:\\Programfiler\\Arduino\\hardware\\arduino\\avr\\libraries\\Wire\\src",
+        "D:\\Programfiler\\Arduino\\libraries",
+        "D:\\Programfiler\\Arduino\\hardware\\arduino\\avr\\libraries",
+        "${projectRoot}..\\..\\..\\Arduino\\libraries",
+        "D:\\Programfiler\\Arduino\\hardware\\arduino\\avr\\cores\\arduino",
+        "D:\\Programfiler\\Arduino\\hardware\\arduino\\avr\\variants\\standard",
+        "${projectRoot}..\\LRTimelapse_Pro_Timer_Free",
+        "D:\\Programfiler\\Arduino\\hardware\\tools\\avr\\avr\\include\\",
+        "D:\\Programfiler\\Arduino\\hardware\\tools\\avr\\avr\\include\\avr\\",
+        "D:\\Programfiler\\Arduino\\hardware\\tools\\avr\\lib\\gcc\\avr\\4.8.1\\include",
+        "D:\\Programfiler\\Arduino\\hardware\\tools\\avr\\lib\\gcc\\avr\\4.9.2\\include",
+        "D:\\Programfiler\\Arduino\\hardware\\tools\\avr\\lib\\gcc\\avr\\4.9.3\\include"
+      ],
+      "defines": [
+        "__AVR_ATmega328p__",
+        "__AVR_ATmega328P__",
+        "F_CPU=16000000L",
+        "ARDUINO=10609",
+        "ARDUINO_AVR_UNO",
+        "ARDUINO_ARCH_AVR",
+        "__cplusplus=201103L",
+        "_VMICRO_INTELLISENSE"
+      ]
+    }
+  ]
+}
