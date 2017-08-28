@@ -13,31 +13,36 @@
 
 static int DEFAULT_KEY_PIN = 0;
 
-// The Sainsmart keypad uses a voltage divider to deliver a voltage
-// between 0 and 5 V that corresponds to the key being pressed in
-// order to use only a single input pin. The values below are from 0 to
-// 1023 because the Arduino uses a 10 bit resolution.
-/* Board introduced by G.W.   */
-static int DEFAULT_THRESHOLD = 50;   // KH: changed from 5 to 50 - more tolerance
-static int UPKEY_ARV = 144; // 0.720 V, that's read "analogue read value"
-static int DOWNKEY_ARV = 329; // 1.645 V
-static int LEFTKEY_ARV = 505; // 2.525 V
-static int RIGHTKEY_ARV = 0; // 0 V
-static int SELKEY_ARV = 742; // 3.710 V
-static int NOKEY_ARV = 1023; // 5.115 V
-/* */
+#define _display_standard_
+// #define _display_alternative1_
 
-/* K.H.: My NEW Board (looks same as that one shown in project, but branded as: Open Source ELECTRONICS - Miroad
- *       has other voltage steps - here the values:    */
-/*  IF ONLY THE RIGHT-KEY IS RECOGNIZED ON YOUR BOARD,  TRY THIS VALUES
-static int DEFAULT_THRESHOLD = 50;
-static int UPKEY_ARV = 99;
-static int DOWNKEY_ARV = 256;
-static int LEFTKEY_ARV = 410;
-static int RIGHTKEY_ARV = 0;
-static int SELKEY_ARV = 640;
-static int NOKEY_ARV = 1023;
-*/
+#ifdef _display_standard_
+  // The Sainsmart keypad uses a voltage divider to deliver a voltage
+  // between 0 and 5 V that corresponds to the key being pressed in
+  // order to use only a single input pin. The values below are from 0 to
+  // 1023 because the Arduino uses a 10 bit resolution.
+  /* Board introduced by G.W.   */
+  static int DEFAULT_THRESHOLD = 50;   // KH: changed from 5 to 50 - more tolerance
+  static int UPKEY_ARV = 144; // 0.720 V, that's read "analogue read value"
+  static int DOWNKEY_ARV = 329; // 1.645 V
+  static int LEFTKEY_ARV = 505; // 2.525 V
+  static int RIGHTKEY_ARV = 0; // 0 V
+  static int SELKEY_ARV = 742; // 3.710 V
+  static int NOKEY_ARV = 1023; // 5.115 V
+#endif
+
+#ifdef _display_alternative1_
+  // K.H.: My NEW Board (looks same as that one shown in project, but branded as: Open Source ELECTRONICS - Miroad
+  //       has other voltage steps - here the values:  
+  //  IF ONLY THE RIGHT-KEY IS RECOGNIZED ON YOUR BOARD,  TRY THIS VALUES 
+  static int DEFAULT_THRESHOLD = 50;
+  static int UPKEY_ARV = 99;
+  static int DOWNKEY_ARV = 256;
+  static int LEFTKEY_ARV = 410;
+  static int RIGHTKEY_ARV = 0;
+  static int SELKEY_ARV = 640;
+  static int NOKEY_ARV = 1023;
+#endif
 
 LCD_Keypad_Reader::LCD_Keypad_Reader()
 {

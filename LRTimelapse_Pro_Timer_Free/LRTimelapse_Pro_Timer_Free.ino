@@ -5,13 +5,16 @@
   http://lrtimelapse.com
   https://github.com/gwegner/LRTimelapse-Pro-Timer-Free
 
+  Version 0.89: Klaus Heiss: Lcd backlight dimming implemented, Save Params in EEPROM implemented (lib EEPROMConfig) 28.08.17
   Version 0.88: Thanks for Klaus Heiss (KH) for implementing the dynamic key rate
 */
 
+
 #include <LiquidCrystal.h>
 #include "LCD_Keypad_Reader.h"			// credits to: http://www.hellonull.com/?p=282
+#include "EEPROMConfig.h"           // Klaus Heiss, www.elite.at
 
-const String CAPTION = "Pro-Timer 0.88";
+const String CAPTION = "Pro-Timer 0.89";
 
 LCD_Keypad_Reader keypad;
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);	//Pin assignments for SainSmart LCD Keypad Shield
@@ -23,7 +26,8 @@ const int UP = 3;
 const int DOWN = 4;
 const int RIGHT = 5;
 
-const int BACK_LIGHT = 10;
+const int Onboard_LED = 13;
+const int BACK_LIGHT  = 10;
 
 const float RELEASE_TIME_DEFAULT = 0.1;			// default shutter release time for camera
 const float MIN_DARK_TIME = 0.5;
@@ -35,6 +39,7 @@ int lastKeyPressed = -1;				// The last pressed key
 
 unsigned long lastKeyCheckTime = 0;
 unsigned long lastKeyPressTime = 0;
+unsigned long lastDispTurnedOffTime = 0;
 
 int sameKeyCount = 0;
 float releaseTime = RELEASE_TIME_DEFAULT;			        // Shutter release time for camera
@@ -80,29 +85,62 @@ int currentMenu = 0;					// the currently selected menu
 int settingsSel = 1;					// the currently selected settings option
 int mode = MODE_M;            // mode: M or Bulb
 
+const float cMinInterval = 0.2;
+const float cMaxInterval = 99;  // no intervals longer as 99secs - those would scramble the display
+
+// K.H. LCD dimming
+const int cMinLevel     = 0;  // Min. Background Brightness Levels
+const int cMaxLevel     = 5;  // Max. Background Brightness Levels
+int  act_BackLightLevel = 4;
+char act_BackLightDir   = 'D';
+
+// K.H: EPROM Params 
+EEPParams EEProm;
+
+
 /**
    Initialize everything
 */
 void setup() {
+  pinMode(Onboard_LED, OUTPUT);
+  digitalWrite(Onboard_LED, LOW);   // Turn Onboard LED OFF. it only consumes battery power ;-)
 
   pinMode(BACK_LIGHT, OUTPUT);
-  digitalWrite(BACK_LIGHT, HIGH);		// Turn backlight on.
+  digitalWrite(BACK_LIGHT, LOW);    // First turn backlight off.
 
+  Serial.begin(9600);
+  Serial.println( CAPTION );
+
+  // init LCD display
   lcd.begin(16, 2);
   lcd.clear();
   lcd.setCursor(0, 0);
-
   // print welcome screen))
   lcd.print("LRTimelapse.com");
   lcd.setCursor(0, 1);
   lcd.print( CAPTION );
 
-  pinMode(12, OUTPUT);					// initialize output pin for camera release
+  // Load EEPROM params
+  EEProm.ParamsRead();
+  // check ranges
+  EEProm.Params.BackgroundBrightnessLevel = constrain(EEProm.Params.BackgroundBrightnessLevel, cMinLevel,    cMaxLevel);
+  EEProm.Params.Interval                  = constrain(EEProm.Params.Interval,                  cMinInterval, cMaxInterval);
+  
+  act_BackLightLevel = EEProm.Params.BackgroundBrightnessLevel;
+  interval           = EEProm.Params.Interval;
+  
+  // wait a moment...  show CAPTION dimming
+  /* H.K.: implemented dimming */  
+  digitalWrite(BACK_LIGHT, HIGH);    // Turn backlight on.
+  delay(1500);
+  DimLCD(255,0,2);
 
-  delay(2000);							// wait a moment...
 
-  Serial.begin(9600);
-  Serial.println( CAPTION );
+  printIntervalMenu();
+  delay(250);
+  DimLCD(0,act_BackLightBrightness(),2);
+
+  pinMode(12, OUTPUT);          // initialize output pin for camera release
 
   lcd.clear();
 }
@@ -111,7 +149,6 @@ void setup() {
    The main loop
 */
 void loop() {
-
   if (millis() > lastKeyCheckTime + keySampleRate) {
     lastKeyCheckTime = millis();
     localKey = keypad.getKey();
@@ -128,7 +165,7 @@ void loop() {
       /* H.K.: implemented function ActRepeateRate instead of constant */
       if (localKey != 0 && millis() > lastKeyPressTime + keypad.ActRepeatRate()) {
         // yes, repeat this key
-        if ( (localKey == UP ) || ( localKey == DOWN ) ) {
+        if ( (localKey == UP ) || ( localKey == DOWN ) || ( localKey == SELECT ) ) {
           processKey();
         }
       }
@@ -137,12 +174,12 @@ void loop() {
     if ( currentMenu == SCR_RUNNING ) {
       printScreen();	// update running screen in any case
 
-      if( mode == MODE_BULB ){
+      if ( mode == MODE_BULB ) {
         possiblyEndLongExposure(); // checks regularly if a long exposure has to be cancelled
       }
     }
 
-    if( currentMenu == SCR_SINGLE ){
+    if ( currentMenu == SCR_SINGLE ) {
       possiblyEndLongExposure();
     }
 
@@ -153,22 +190,135 @@ void loop() {
 
 }
 
+
+/* 
+  K.H: dimming LCD BAckground light
+*/
+void DimLCD( byte startval, byte endval, byte stepdelay) {
+  if (endval < startval) {
+    for ( int bl = startval; bl >= endval; bl--) {
+      analogWrite(BACK_LIGHT, bl);    // dimming backlight off.
+      delay(stepdelay);
+    }
+  }
+  else {
+    for ( int bl = startval; bl <= endval; bl++) {
+      analogWrite(BACK_LIGHT, bl);    // dimming backlight off.
+      delay(stepdelay);
+    }
+  }  
+}
+
+/**
+  K.H: Change Backlight Brightness in Steps
+*/
+void changeBackLightBrightness( char AMode) {   //U=up, D=douwn, R=rolling
+  if ((AMode == 'U') || (AMode == 'D')) {
+    act_BackLightDir = AMode;
+  }
+  if (act_BackLightDir == 'D') {
+    act_BackLightLevel --;
+  } else {
+    act_BackLightLevel ++;
+  }
+
+  if ((act_BackLightLevel == -1) && (AMode == 'R')) {
+    act_BackLightDir = 'U';
+  }
+  if ((act_BackLightLevel == cMaxLevel + 1)  && (AMode == 'R')) {
+    act_BackLightDir = 'D';
+  }
+  if (AMode == 'R') {
+    act_BackLightLevel = constrain(act_BackLightLevel, cMinLevel - 1, cMaxLevel + 1);
+  } else {
+    act_BackLightLevel = constrain(act_BackLightLevel, cMinLevel, cMaxLevel);
+  }
+
+  analogWrite(BACK_LIGHT, act_BackLightBrightness()); // Turn PWM backlight on.
+}
+
+/**
+  K.H. calc PWM-Value for background display brightness
+*/
+byte act_BackLightBrightness() {
+  return constrain (act_BackLightLevel * (255 / cMaxLevel), 12, 255);
+}
+
+/**
+   K.H. save actual level in EPROM
+*/
+void save_Params() {
+  String str;
+  if (not isRunning) {
+    boolean save = false;
+    act_BackLightLevel = constrain(act_BackLightLevel, cMinLevel, cMaxLevel);
+    if (act_BackLightLevel != EEProm.Params.BackgroundBrightnessLevel) {
+      str = "saved level "; str += (act_BackLightLevel + 1); str += "   "; 
+      lcd.setCursor(0, 0);
+      lcd.print(str);
+      delay(2000);
+      save = true;
+    };
+    if (interval != EEProm.Params.Interval) {
+      str = "saved int. "; str += String(interval, 2); str += "  "; 
+      lcd.setCursor(0, 0);
+      lcd.print(str);
+      delay(2000);
+      save = true;
+    };
+    if (save) {
+      EEProm.Params.BackgroundBrightnessLevel = act_BackLightLevel;
+      EEProm.Params.Interval                  = interval;
+      if (not EEProm.ParamsWrite()) {
+        lcd.setCursor(0, 0); lcd.print("PROBLEM SAVING  ");
+        lcd.setCursor(0, 1); lcd.print("PARAMS TO EEPROM");
+        delay(3000);
+        lcd.clear();
+      }
+    } else {  
+      lcd.setCursor(0, 0);
+      lcd.print("OK, no changes");
+      delay(1500);
+    }
+    lcd.setCursor(0, 0);
+    lcd.print("                ");
+  }
+}
+
 /**
    Process the key presses - do the Menu Navigation
 */
 void processKey() {
 
-  lastKeyPressed = localKey;
-  lastKeyPressTime = millis();
-
   // select key will switch backlight at any time
   if ( localKey == SELECT ) {
-    if ( backLight == HIGH ) {
-      backLight = LOW;
-    } else {
-      backLight = HIGH;
+    if (lastKeyPressed == SELECT) {
+      if (millis() > lastKeyPressTime + 500) {
+        changeBackLightBrightness('R');
+        lastKeyPressTime = millis();
+        backLight = true;
+      }
     }
-    digitalWrite(BACK_LIGHT, backLight); // Turn backlight on.
+    else {
+      backLight = !backLight;
+      if (backLight) {
+        analogWrite(BACK_LIGHT, act_BackLightBrightness()); // Turn PWM backlight on.
+        if (millis() < lastDispTurnedOffTime + 450) {
+          save_Params();
+          lastDispTurnedOffTime = 0;
+        }
+      }
+      else {
+        digitalWrite(BACK_LIGHT, LOW); // Turn backlight off.
+        lastDispTurnedOffTime = millis();
+      }
+      lastKeyPressed = localKey;
+      lastKeyPressTime = millis();
+    }
+  }
+  else {
+    lastKeyPressed = localKey;
+    lastKeyPressTime = millis();
   }
 
   // do the menu navigation
@@ -178,13 +328,13 @@ void processKey() {
 
       if ( localKey == UP ) {
         interval = (float)((int)(interval * 10) + 1) / 10; // round to 1 decimal place
-        if ( interval > 99 ) { // no intervals longer as 99secs - those would scramble the display
-          interval = 99;
+        if ( interval > cMaxInterval ) { 
+          interval = cMaxInterval;
         }
       }
 
       if ( localKey == DOWN ) {
-        if ( interval > 0.2) {
+        if ( interval > cMinInterval) {
           interval = (float)((int)(interval * 10) - 1) / 10; // round to 1 decimal place
         }
       }
@@ -204,13 +354,13 @@ void processKey() {
 
     case SCR_MODE:
       if ( localKey == RIGHT ) {
-          currentMenu = SCR_SHOTS;
+        currentMenu = SCR_SHOTS;
       }
-      else if( localKey == LEFT ){
+      else if ( localKey == LEFT ) {
         currentMenu = SCR_INTERVAL;
       }
-      else if( ( localKey == UP ) || ( localKey == DOWN ) ){
-        if( mode == MODE_M ){
+      else if ( ( localKey == UP ) || ( localKey == DOWN ) ) {
+        if ( mode == MODE_M ) {
           mode = MODE_BULB;
         } else {
           mode = MODE_M;
@@ -261,7 +411,7 @@ void processKey() {
       }
 
       if ( localKey == RIGHT ) { // Start shooting
-        if( mode == MODE_M ){
+        if ( mode == MODE_M ) {
           currentMenu = SCR_RUNNING;
           firstShutter();
         } else {
@@ -270,33 +420,33 @@ void processKey() {
       }
       break;
 
-      // Exposure Time
-      case SCR_EXPOSURE:
+    // Exposure Time
+    case SCR_EXPOSURE:
 
-        if ( localKey == UP ) {
-          releaseTime = (float)((int)(releaseTime * 10) + 1) / 10; // round to 1 decimal place
+      if ( localKey == UP ) {
+        releaseTime = (float)((int)(releaseTime * 10) + 1) / 10; // round to 1 decimal place
+      }
+
+      if ( releaseTime > interval - MIN_DARK_TIME ) { // no release times longer then (interval-Min_Dark_Time)
+        releaseTime = interval - MIN_DARK_TIME;
+      }
+
+      if ( localKey == DOWN ) {
+        if ( releaseTime > RELEASE_TIME_DEFAULT ) {
+          releaseTime = (float)((int)(releaseTime * 10) - 1) / 10; // round to 1 decimal place
         }
+      }
 
-        if ( releaseTime > interval - MIN_DARK_TIME ) { // no release times longer then (interval-Min_Dark_Time)
-          releaseTime = interval - MIN_DARK_TIME;
-        }
+      if ( localKey == LEFT ) {
+        currentMenu = SCR_SHOTS;
+      }
 
-        if ( localKey == DOWN ) {
-          if ( releaseTime > RELEASE_TIME_DEFAULT ) {
-            releaseTime = (float)((int)(releaseTime * 10) - 1) / 10; // round to 1 decimal place
-          }
-        }
+      if ( localKey == RIGHT ) {
+        currentMenu = SCR_RUNNING;
+        firstShutter();
+      }
 
-        if ( localKey == LEFT ) {
-          currentMenu = SCR_SHOTS;
-        }
-
-        if ( localKey == RIGHT ) {
-          currentMenu = SCR_RUNNING;
-          firstShutter();
-        }
-
-        break;
+      break;
 
     case SCR_RUNNING:
 
@@ -320,13 +470,20 @@ void processKey() {
         currentMenu = SCR_SETTINGS;
         lcd.clear();
       }
+
+      if ( localKey == UP ) {
+        changeBackLightBrightness('U');
+      }
+      if ( localKey == DOWN ) {
+        changeBackLightBrightness('D');
+      }
       break;
 
     case SCR_CONFIRM_END:
       if ( localKey == LEFT ) { // Really abort
         currentMenu = SCR_INTERVAL;
 
-        if( bulbReleasedAt > 0 ){ // if we are shooting in bulb mode, instantly stop the exposure
+        if ( bulbReleasedAt > 0 ) { // if we are shooting in bulb mode, instantly stop the exposure
           bulbReleasedAt = 0;
           digitalWrite(12, LOW);
         }
@@ -419,13 +576,13 @@ void processKey() {
 
       if ( localKey == UP ) {
         rampTo = (float)((int)(rampTo * 10) + 1) / 10; // round to 1 decimal place
-        if ( rampTo > 99 ) { // no intervals longer as 99secs - those would scramble the display
-          rampTo = 99;
+        if ( rampTo > cMaxInterval ) { 
+          rampTo = cMaxInterval;
         }
       }
 
       if ( localKey == DOWN ) {
-        if ( rampTo > 0.2) {
+        if ( rampTo > cMinInterval) {
           rampTo = (float)((int)(rampTo * 10) - 1) / 10; // round to 1 decimal place
         }
       }
@@ -454,7 +611,7 @@ void processKey() {
 
     case SCR_SINGLE:
       if ( localKey == UP ) {
-        if( releaseTime < 60 )
+        if ( releaseTime < 60 )
           releaseTime = (float)((int)(releaseTime + 1));
         else
           releaseTime = (float)((int)(releaseTime + 10));
@@ -462,12 +619,12 @@ void processKey() {
 
       if ( localKey == DOWN ) {
         if ( releaseTime > RELEASE_TIME_DEFAULT ) {
-          if( releaseTime < 60 )
+          if ( releaseTime < 60 )
             releaseTime = (float)((int)(releaseTime - 1));
           else
             releaseTime = (float)((int)(releaseTime - 10));
         }
-        if( releaseTime < RELEASE_TIME_DEFAULT ){ // if it's too short after decrementing, set to the default release time.
+        if ( releaseTime < RELEASE_TIME_DEFAULT ) { // if it's too short after decrementing, set to the default release time.
           releaseTime = RELEASE_TIME_DEFAULT;
         }
       }
@@ -479,42 +636,42 @@ void processKey() {
 
       if ( localKey == RIGHT ) {
         lcd.clear();
-        if( bulbReleasedAt == 0 ){   // if not running, go to main screen
+        if ( bulbReleasedAt == 0 ) { // if not running, go to main screen
           currentMenu = SCR_INTERVAL;
         } else {                     // if running, go to confirm screen
           currentMenu = SCR_CONFIRM_END_BULB;
         }
 
       }
-    break;
+      break;
 
     case SCR_CONFIRM_END_BULB:
-        if ( localKey == RIGHT ) { // Really abort
+      if ( localKey == RIGHT ) { // Really abort
 
-          digitalWrite(12, LOW);
-          stopShooting();
+        digitalWrite(12, LOW);
+        stopShooting();
 
-          currentMenu = SCR_SINGLE;
-          lcd.clear();
-        }
-        if ( localKey == LEFT ) { // resume
-          currentMenu = SCR_SINGLE;
-          lcd.clear();
-        }
-        break;
+        currentMenu = SCR_SINGLE;
+        lcd.clear();
+      }
+      if ( localKey == LEFT ) { // resume
+        currentMenu = SCR_SINGLE;
+        lcd.clear();
+      }
+      break;
 
   }
   printScreen();
 }
 
-void stopShooting(){
+void stopShooting() {
   isRunning = 0;
   imageCount = 0;
   runningTime = 0;
   bulbReleasedAt = 0;
 }
 
-void firstShutter(){
+void firstShutter() {
   previousMillis = millis();
   runningTime = 0;
   isRunning = 1;
@@ -582,6 +739,7 @@ void printScreen() {
     case SCR_SINGLE:
       printSingleScreen();
       break;
+
   }
 }
 
@@ -621,7 +779,7 @@ void possiblyRampInterval() {
   if ( ( millis() < rampingEndTime ) && ( millis() >= rampingStartTime ) ) {
     interval = intervalBeforeRamping + ( (float)( millis() - rampingStartTime ) / (float)( rampingEndTime - rampingStartTime ) * ( rampTo - intervalBeforeRamping ) );
 
-    if( releaseTime > interval - MIN_DARK_TIME ){ // if ramping makes the interval too short for the exposure time in bulb mode, adjust the exposure time
+    if ( releaseTime > interval - MIN_DARK_TIME ) { // if ramping makes the interval too short for the exposure time in bulb mode, adjust the exposure time
       releaseTime =  interval - MIN_DARK_TIME;
     }
 
@@ -637,8 +795,8 @@ void possiblyRampInterval() {
 void releaseCamera() {
 
   // short trigger in M-Mode
-  if( releaseTime < 1 ){
-    if( currentMenu == SCR_RUNNING ){ // display exposure indicator on running screen only
+  if ( releaseTime < 1 ) {
+    if ( currentMenu == SCR_RUNNING ) { // display exposure indicator on running screen only
       lcd.setCursor(7, 1);
       lcd.print((char)255);
     }
@@ -647,7 +805,7 @@ void releaseCamera() {
     delay( releaseTime * 1000 );
     digitalWrite(12, LOW);
 
-    if( currentMenu == SCR_RUNNING ){ // clear exposure indicator
+    if ( currentMenu == SCR_RUNNING ) { // clear exposure indicator
       lcd.setCursor(7, 1);
       lcd.print(" ");
     }
@@ -655,9 +813,9 @@ void releaseCamera() {
   } else { // releaseTime > 1 sec
 
     // long trigger in Bulb-Mode for longer exposures
-    if( bulbReleasedAt == 0 ){
-        bulbReleasedAt = millis();
-        digitalWrite(12, HIGH);
+    if ( bulbReleasedAt == 0 ) {
+      bulbReleasedAt = millis();
+      digitalWrite(12, HIGH);
     }
   }
 
@@ -666,14 +824,14 @@ void releaseCamera() {
 /**
   Will be called by the loop and check if a bulb exposure has to end. If so, it will stop the exposure.
 */
-void possiblyEndLongExposure(){
-  if( ( bulbReleasedAt != 0 ) && ( millis() >= ( bulbReleasedAt + releaseTime * 1000 ) ) ){
+void possiblyEndLongExposure() {
+  if ( ( bulbReleasedAt != 0 ) && ( millis() >= ( bulbReleasedAt + releaseTime * 1000 ) ) ) {
     bulbReleasedAt = 0;
     digitalWrite(12, LOW);
   }
 
-  if( currentMenu == SCR_RUNNING ){ // display exposure indicator on running screen only
-    if( bulbReleasedAt == 0 ) {
+  if ( currentMenu == SCR_RUNNING ) { // display exposure indicator on running screen only
+    if ( bulbReleasedAt == 0 ) {
       lcd.setCursor(7, 1);
       lcd.print(" ");
     } else {
@@ -682,7 +840,7 @@ void possiblyEndLongExposure(){
     }
   }
 
-  if( currentMenu == SCR_SINGLE ){
+  if ( currentMenu == SCR_SINGLE ) {
     printSingleScreen();
   }
 }
@@ -741,7 +899,7 @@ void printModeMenu() {
   lcd.setCursor(0, 0);
   lcd.print("Mode");
   lcd.setCursor(0, 1);
-  if( mode == MODE_M ){
+  if ( mode == MODE_M ) {
     lcd.print( "M (Default)     " );
   } else {
     lcd.print( "Bulb (Astro)    " );
@@ -829,10 +987,10 @@ void printConfirmEndScreenBulb() {
   lcd.print( "< Cont.   Stop >");
 }
 
-void printSingleScreen(){
+void printSingleScreen() {
   lcd.setCursor(0, 0);
 
-  if( releaseTime < 1 ){
+  if ( releaseTime < 1 ) {
     lcd.print( "Single Exposure");
     lcd.setCursor(0, 1);
     lcd.print(releaseTime); // under one second
@@ -841,7 +999,7 @@ void printSingleScreen(){
     lcd.print( "Bulb Exposure  ");
     lcd.setCursor(0, 1);
 
-    if( bulbReleasedAt == 0 ){ // if not shooting
+    if ( bulbReleasedAt == 0 ) { // if not shooting
       // display exposure time setting
       int hours = (int)releaseTime / 60 / 60;
       int minutes = ( (int)releaseTime / 60 ) % 60;
@@ -860,9 +1018,9 @@ void printSingleScreen(){
     }
   }
 
-  if( bulbReleasedAt == 0 ){ // currently not running
+  if ( bulbReleasedAt == 0 ) { // currently not running
 
-    lcd.setCursor(10,1);
+    lcd.setCursor(10, 1);
     lcd.print( "< FIRE" );
 
   } else { // running

@@ -1,3 +1,25 @@
+0.89
+Changes by Klaus Heiss, Austria
+- Introduces LCD backlight dimming for power saving and optical reason 
+  long pressing select key steps dimming level. release key at suitable level
+  when running: up down keys are increasing or decreasing brighness for your convenience
+  consumption at available brightness leveles to get an idea of possible power savings:
+  0 (OFF) 	 50 mA
+  1 min		 55 mA  (you may now let backlight on always at this level)
+  2		 70 mA
+  3		 88 mA
+  4		104 mA
+  5		115 mA
+  6		124 mA
+
+- Params can be saved in EEPROM
+  when backlight is turned on and pressing select key 2 times short and fast (double-pressing) these params are saved in EEPROM
+  - actual display background brightness level
+  - actual interval 
+  After power on or reset these values are restored from EEPROM
+  
+- Turned OFF Onboard LED 13. it only consumes battery power.
+
 0.88
 Changes by Klaus Heiss, Austria (Thank you!)
 - Introduces dynamic key repeating. This makes the keyboard more responsive.
