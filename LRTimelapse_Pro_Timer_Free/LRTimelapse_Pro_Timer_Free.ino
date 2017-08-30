@@ -132,13 +132,10 @@ void setup() {
   // wait a moment...  show CAPTION dimming
   /* H.K.: implemented dimming */  
   digitalWrite(BACK_LIGHT, HIGH);    // Turn backlight on.
-  delay(1500);
-  DimLCD(255,0,2);
-
+  delay(2000);
+  DimLCD(255,act_BackLightBrightness(),2);
 
   printIntervalMenu();
-  delay(250);
-  DimLCD(0,act_BackLightBrightness(),2);
 
   pinMode(12, OUTPUT);          // initialize output pin for camera release
 
