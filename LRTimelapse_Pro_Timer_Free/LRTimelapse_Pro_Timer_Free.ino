@@ -3,6 +3,7 @@
   Gunther Wegner
   http://gwegner.de
   http://lrtimelapse.com
+  https://github.com/gwegner/LRTimelapse-Pro-Timer-Free
 
   Version 0.88: Thanks for Klaus Heiss (KH) for implementing the dynamic key rate
 */
