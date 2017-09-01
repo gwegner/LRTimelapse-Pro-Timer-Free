@@ -1,3 +1,7 @@
+0.90
+ -Intervals can now be a maximum of 999 secs (Over 16 Minutes) instead of 99 secs only.
+ -Added acceleration when changing the intervals: intervals higher then 20secs will get increased/decreased by one second, intervals below this by 0.1.
+ 
 0.89
 Changes by Klaus Heiss, Austria
 - Introduces LCD backlight dimming for power saving and optical reason 
