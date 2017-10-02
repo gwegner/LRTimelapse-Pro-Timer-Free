@@ -14,7 +14,7 @@
 #include "LCD_Keypad_Reader.h"			// credits to: http://www.hellonull.com/?p=282
 #include "EEPROMConfig.h"           // Klaus Heiss, www.elite.at
 
-const String CAPTION = "Pro-Timer 0.90";
+const String CAPTION = "Pro-Timer 0.91";
 
 LCD_Keypad_Reader keypad;
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);	//Pin assignments for SainSmart LCD Keypad Shield
@@ -33,6 +33,8 @@ const float RELEASE_TIME_DEFAULT = 0.1;			// default shutter release time for ca
 const float MIN_DARK_TIME = 0.5;
 
 const int keyRepeatRate = 100;			// when held, key repeats 1000 / keyRepeatRate times per second
+
+const int decoupleTime = 1000;      // time in milliseconds to wait before doing a single bulb exposure
 
 int localKey = 0;						// The current pressed key
 int lastKeyPressed = -1;				// The last pressed key
@@ -644,6 +646,10 @@ void processKey() {
 
       if ( localKey == LEFT ) {
         lcd.clear();
+        lcd.setCursor(0,0);
+        lcd.print("Decoupling...");
+        delay( decoupleTime );
+        lcd.clear();
         releaseCamera();
       }
 
@@ -685,6 +691,12 @@ void stopShooting() {
 }
 
 void firstShutter() {
+
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("Decoupling...");
+  delay( decoupleTime );
+
   previousMillis = millis();
   runningTime = 0;
   isRunning = 1;
@@ -929,6 +941,7 @@ void printModeMenu() {
 */
 void printNoOfShotsMenu() {
 
+  lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("No of shots");
   lcd.setCursor(0, 1);
