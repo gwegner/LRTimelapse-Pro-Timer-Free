@@ -5,6 +5,7 @@
   http://lrtimelapse.com
   https://github.com/gwegner/LRTimelapse-Pro-Timer-Free
 
+  Version 0.92: Hans Vollmer Timing for Cam release and exposure indicator in timer Interrupt
   Version 0.89: Klaus Heiss: Lcd backlight dimming implemented, Save Params in EEPROM implemented (lib EEPROMConfig) 28.08.17
   Version 0.88: Thanks for Klaus Heiss (KH) for implementing the dynamic key rate
 */
@@ -14,7 +15,7 @@
 #include "LCD_Keypad_Reader.h"			// credits to: http://www.hellonull.com/?p=282
 #include "EEPROMConfig.h"           // Klaus Heiss, www.elite.at
 
-const String CAPTION = "Pro-Timer 0.91";
+const String CAPTION = "Pro-Timer 0.92";
 
 LCD_Keypad_Reader keypad;
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);	//Pin assignments for SainSmart LCD Keypad Shield
@@ -100,6 +101,12 @@ char act_BackLightDir   = 'D';
 EEPParams EEProm;
 
 
+// HV Timer Interrupt Definitions
+const byte shooting = 1;
+const byte notshooting = 0;
+byte cam_Release = notshooting;
+int exposureTime = 0;    // Time for exposure in Timer Interrupt (10 msec)
+
 /**
    Initialize everything
 */
@@ -140,6 +147,16 @@ void setup() {
   printIntervalMenu();
 
   pinMode(12, OUTPUT);          // initialize output pin for camera release
+
+  // init Timer 1 for Interrupt Timing
+  noInterrupts();           // all Interrupts temporary off
+  TCCR1A = 0;
+  TCCR1B = 0;
+
+  TCNT1 = 64912;            // Timer 10msec (100Hz)
+  TCCR1B |= (1 << CS12);    // 256 Prescale
+  TIMSK1 |= (1 << TOIE1);   // activate Timer Overflow Interrupt n
+  interrupts();             // all Interrupts enable
 
   lcd.clear();
 }
@@ -182,6 +199,21 @@ void loop() {
       possiblyEndLongExposure();
     }
 
+  }
+// HV Interrupt Cam release and Display indicator handling
+    if (cam_Release == shooting)
+    {
+
+      if (exposureTime == 0)       // End of exposure
+      {
+      cam_Release = notshooting;
+      digitalWrite(12, LOW);
+
+    if ( currentMenu == SCR_RUNNING ) { // clear exposure indicator
+      lcd.setCursor(7, 1);
+      lcd.print(" ");
+    }
+   }
   }
   if ( isRunning ) {	// release camera, do ramping if running
     running();
@@ -492,7 +524,8 @@ void processKey() {
 
         if ( bulbReleasedAt > 0 ) { // if we are shooting in bulb mode, instantly stop the exposure
           bulbReleasedAt = 0;
-          digitalWrite(12, LOW);
+// HV changes für Interrupt Cam release and Display indicator handling
+//          digitalWrite(12, LOW);
         }
         stopShooting();
         lcd.clear();
@@ -825,21 +858,34 @@ void releaseCamera() {
       lcd.setCursor(7, 1);
       lcd.print((char)255);
     }
+// HV changes für Interrupt Cam release and Display indicator handling
+      if (releaseTime < 0.2){
+      exposureTime = releaseTime * 150;     // for better viewability
+      }
+      else {
+      exposureTime = releaseTime * 100;
+      }
+      cam_Release = shooting;
 
     digitalWrite(12, HIGH);
-    delay( releaseTime * 1000 );
-    digitalWrite(12, LOW);
+//    delay( releaseTime * 1000 );
+//    digitalWrite(12, LOW);
 
-    if ( currentMenu == SCR_RUNNING ) { // clear exposure indicator
-      lcd.setCursor(7, 1);
-      lcd.print(" ");
-    }
+//    if ( currentMenu == SCR_RUNNING ) { // clear exposure indicator
+//      lcd.setCursor(7, 1);
+//      lcd.print(" ");
+//    }
 
   } else { // releaseTime > 1 sec
 
     // long trigger in Bulb-Mode for longer exposures
     if ( bulbReleasedAt == 0 ) {
       bulbReleasedAt = millis();
+// HV changes für Interrupt Cam release and Display indicator handling
+      lcd.setCursor(7, 1);
+      lcd.print((char)255);
+      exposureTime = releaseTime * 100;
+      cam_Release = shooting;
       digitalWrite(12, HIGH);
     }
   }
@@ -852,18 +898,19 @@ void releaseCamera() {
 void possiblyEndLongExposure() {
   if ( ( bulbReleasedAt != 0 ) && ( millis() >= ( bulbReleasedAt + releaseTime * 1000 ) ) ) {
     bulbReleasedAt = 0;
-    digitalWrite(12, LOW);
+// HV changes für Interrupt Cam release and Display indicator handling
+//    digitalWrite(12, LOW);
   }
 
-  if ( currentMenu == SCR_RUNNING ) { // display exposure indicator on running screen only
-    if ( bulbReleasedAt == 0 ) {
-      lcd.setCursor(7, 1);
-      lcd.print(" ");
-    } else {
-      lcd.setCursor(7, 1);
-      lcd.print((char)255);
-    }
-  }
+//  if ( currentMenu == SCR_RUNNING ) { // display exposure indicator on running screen only
+//    if ( bulbReleasedAt == 0 ) {
+//      lcd.setCursor(7, 1);
+//      lcd.print(" ");
+//    } else {
+//      lcd.setCursor(7, 1);
+//      lcd.print((char)255);
+//    }
+//  }
 
   if ( currentMenu == SCR_SINGLE ) {
     printSingleScreen();
@@ -1081,8 +1128,6 @@ void printSingleScreen() {
     lcd.setCursor(14, 1);
     lcd.print( sSecs );
   }
-
-
 }
 
 
@@ -1164,7 +1209,13 @@ void printRampToMenu() {
   lcd.print( "             " );
 }
 
-
+ISR(TIMER1_OVF_vect)
+{
+  TCNT1 = 64912;             // Reload Timer Counter
+  if (exposureTime >0) {
+     exposureTime --;
+  }
+}
 
 
 // ----------- HELPER METHODS -------------------------------------
