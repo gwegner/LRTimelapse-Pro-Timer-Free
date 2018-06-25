@@ -1,3 +1,7 @@
+0.92
+Improvements by Hans Vollmer
+- Timing for Cam release and exposure indicator in timer Interrupt, see https://forum.lrtimelapse.com/Thread-lrtimelapse-pro-timer-improvements
+
 0.91
 - Added 1 sec decoupling to timelapse and single bulb shots. This allows the photographer to take the hands from the timer before the shooting starts.
 You can configure the time in the sketch (const decouple time in line 37)
